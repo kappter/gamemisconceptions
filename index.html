@@ -23,7 +23,7 @@
                     <button id="false-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">False</button>
                 </div>
             </div>
-            <div id="result-container" class="hidden">
+            <div id="result-container" class="hidden mb-4">
                 <p id="result-text" class="text-lg mb-4"></p>
                 <p id="truth-text" class="text-gray-700 mb-4"></p>
                 <button id="next-btn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Next Question</button>
@@ -115,6 +115,7 @@
         questionsData = getRandomQuestions(questionsData, maxQuestions);
 
         const quizContainer = document.getElementById('quiz-container');
+        const questionContainer = document.getElementById('question-container');
         const questionText = document.getElementById('question-text');
         const trueBtn = document.getElementById('true-btn');
         const falseBtn = document.getElementById('false-btn');
@@ -141,6 +142,7 @@
             if (currentQuestionIndex < questionsData.length) {
                 questionText.textContent = questionsData[currentQuestionIndex].misconception;
                 quizContainer.classList.remove('hidden');
+                questionContainer.classList.remove('hidden');
                 resultContainer.classList.add('hidden');
                 summaryContainer.classList.add('hidden');
                 updateProgressBar();
@@ -158,8 +160,9 @@
                 isCorrect: isCorrect,
                 truth: questionsData[currentQuestionIndex].truth
             });
-            quizContainer.classList.add('hidden');
+            questionContainer.classList.add('hidden');
             resultContainer.classList.remove('hidden');
+            quizContainer.classList.remove('hidden'); // Ensure quiz container stays visible
             resultText.textContent = isCorrect
                 ? 'Correct! This is a misconception.'
                 : `Incorrect. You selected "${userAnswer}", but this is a misconception.`;
