@@ -1,0 +1,212 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Software Development Misconceptions Quiz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl">
+        <h1 class="text-2xl font-bold mb-4 text-center">Software Development Misconceptions Quiz</h1>
+        <div class="mb-4">
+            <div class="w-full bg-gray-200 rounded-full h-4">
+                <div id="progress-bar" class="bg-blue-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p class="text-sm text-gray-600 mt-1 text-center">Question <span id="current-question">1</span> of <span id="total-questions">20</span></p>
+        </div>
+        <div id="question-container" class="mb-4">
+            <p id="question-text" class="text-lg mb-4"></p>
+            <div class="flex justify-center space-x-4">
+                <button id="true-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">True</button>
+                <button id="false-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">False</button>
+            </div>
+        </div>
+        <div id="result-container" class="hidden">
+            <p id="result-text" class="text-lg mb-4"></p>
+            <p id="truth-text" class="text-gray-700 mb-4"></p>
+            <button id="next-btn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Next Question</button>
+        </div>
+        <div id="completion-container" class="hidden">
+            <p class="text-lg font-semibold text-center">Quiz Completed! Thank you for participating.</p>
+            <button id="restart-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mt-4">Restart Quiz</button>
+        </div>
+    </div>
+
+    <script>
+        const questions = [];
+        const csvData = `Misconception,Truth
+"Software development is only about writing code.","Software development involves planning, design, testing, debugging, collaboration, and maintenance."
+"Developers don't need people skills.","Collaboration, communication, and teamwork are essential in software development."
+"One programming language is better than all others.","Different languages are suited for different tasks; no single one is universally superior."
+"Adding more developers always speeds up a project.","According to Brooks' Law, adding manpower to a late project often makes it later due to communication overhead."
+"Software developers are interchangeable resources.","Developers have unique skills, experiences, and expertise that make them non-interchangeable."
+"Software engineering is the same as software development.","Software engineering includes structured processes, methodologies, and best practices beyond just coding."
+"Only big tech companies pay well in software development.","Many mid-sized companies, startups, and non-tech industries offer competitive salaries."
+"Software development is quick and easy.","It's a complex, iterative process that requires time, problem-solving, and adaptation."
+"Programmers are antisocial and introverted.","Many developers are outgoing and thrive in team environments; personality varies widely."
+"Programming is boring and monotonous.","It involves creativity, innovation, and solving diverse challenges."
+"Programming is only for geniuses or naturally gifted people.","Anyone can learn with dedication, practice, and the right resources."
+"Women cannot code or are less capable in software development.","Women are equally capable and have made significant historical and modern contributions to the field."
+"Anyone can code without formal training or effort.","Coding requires learning, practice, and ongoing skill development."
+"All software development companies are the same.","Companies differ in culture, processes, expertise, and quality."
+"Agile methodology means no planning is needed.","Agile involves iterative planning, feedback, and adaptation."
+"More features always make a product better.","Quality, usability, and relevance matter more than quantity; over-featuring can complicate things."
+"Good developers don't need documentation.","Documentation is crucial for maintainability, collaboration, and knowledge transfer."
+"Software requirements are fully known upfront.","Requirements often evolve through discovery, feedback, and changes."
+"Software development is a male-dominated field where men are inherently better.","Stereotypes and biases deter women, but women perform equally well and often better in certain aspects like code acceptance."
+"Men contribute more to open-source software than women.","Studies show this stereotype is false; contributions vary by individual, not gender."
+"Women in software development worry more about age discrimination than gender bias.","Both issues exist, but gender bias is a significant barrier."
+"Girls are naturally less interested in computer science and engineering.","Societal stereotypes create this gap from an early age; interest is not innate."
+"Women make up only a tiny percentage of the tech workforce, so they don't belong.","Women comprise about 25-27% of tech roles, and diversity efforts are increasing representation."
+"Software development is a one-time expense.","It requires ongoing maintenance, updates, and support costs."
+"IT projects are always prohibitively expensive.","Costs vary and can be justified by long-term value and ROI."
+"Outsourcing software development always saves costs.","It depends on the project; sometimes in-house is better for control and quality."
+"Custom software is always more expensive than off-the-shelf solutions.","Upfront costs may be higher, but custom solutions offer long-term savings and fit."
+"Fixed-price contracts eliminate all financial risks.","Risks like scope changes or unforeseen issues still exist."
+"Accurate cost estimation for software projects is impossible.","It's possible using historical data, expert input, and benchmarks."
+"Maintenance costs in software should be minimized at all costs.","Focus on value; proper maintenance prevents larger future expenses."
+"Software developers are all nerds with poor hygiene and social skills.","Developers are diverse individuals with varied lifestyles and personalities."
+"Software engineers are born intelligent and don't need to learn.","Skills are acquired through education, practice, and experience."
+"Software engineering jobs are boring and repetitive.","They involve dynamic problem-solving and innovation."
+"Every software engineer knows everything about computers and tech.","Most specialize in specific areas like front-end, back-end, or DevOps."
+"Software developers obsess over the latest gadgets and gear.","Some do, but many prioritize functionality over bleeding-edge tech."
+"Developers always wear hoodies, jeans, and flip-flops.","Dress varies by company culture; many work in professional environments."
+"Software engineers refuse to write documentation.","Professional developers recognize its importance and do it."
+"All developers are addicted to caffeine.","It's common but not universal; habits vary."
+"Software developers are mostly young people under 35.","The field includes professionals of all ages, with experience valued."
+"Software engineers are mostly white or Caucasian males.","Diversity is increasing, though stereotypes persist; global talent is varied."
+"Software developers have no work-life balance.","It depends on the company; many promote healthy boundaries."
+"Software engineering is easy money with little effort.","It's competitive, requires hard work, and entry-level jobs can be tough to land."
+"Developers always work long hours and overtime.","Hours vary; many companies emphasize sustainable paces."
+"Software engineers are inherently lazy and avoid simple problems.","They tackle complex issues efficiently, but professionalism varies."
+"Developers spend most of their time debugging, which is frustrating.","Debugging is a key part, but it's rewarding when solved."
+"Code is self-documenting and doesn't need extra explanations.","Clear code helps, but separate documentation is essential for teams."
+"In-house development is always preferable to outsourcing.","Outsourcing can provide expertise, scalability, and cost benefits."
+"Software development is fast and features can be added easily later.","Changes later in the process are costly and time-consuming."`;
+
+        // Parse CSV data
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n').slice(1); // Skip header
+            return lines.map(line => {
+                const [misconception, truth] = line.split('","').map(item => item.replace(/^"|"$/g, ''));
+                return { misconception, truth, correctAnswer: 'False' }; // All misconceptions are false
+            });
+        }
+
+        let currentQuestionIndex = 0;
+        let questionsData = parseCSV(csvData);
+        const maxQuestions = 20;
+
+        // Select 20 random questions
+        function getRandomQuestions(array, count) {
+            const shuffled = [...array].sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, count);
+        }
+
+        // Initialize with 20 random questions
+        questionsData = getRandomQuestions(questionsData, maxQuestions);
+
+        const questionText = document.getElementById('question-text');
+        const trueBtn = document.getElementById('true-btn');
+        const falseBtn = document.getElementById('false-btn');
+        const resultContainer = document.getElementById('result-container');
+        const resultText = document.getElementById('result-text');
+        const truthText = document.getElementById('truth-text');
+        const nextBtn = document.getElementById('next-btn');
+        const questionContainer = document.getElementById('question-container');
+        const completionContainer = document.getElementById('completion-container');
+        const restartBtn = document.getElementById('restart-btn');
+        const progressBar = document.getElementById('progress-bar');
+        const currentQuestionDisplay = document.getElementById('current-question');
+        const totalQuestionsDisplay = document.getElementById('total-questions');
+
+        function updateProgressBar() {
+            const progress = ((currentQuestionIndex + 1) / maxQuestions) * 100;
+            progressBar.style.width = `${progress}%`;
+            currentQuestionDisplay.textContent = currentQuestionIndex + 1;
+            totalQuestionsDisplay.textContent = maxQuestions;
+        }
+
+        function showQuestion() {
+            if (currentQuestionIndex < questionsData.length) {
+                questionText.textContent = questionsData[currentQuestionIndex].misconception;
+                questionContainer.classList.remove('hidden');
+                resultContainer.classList.add('hidden');
+                updateProgressBar();
+            } else {
+                questionContainer.classList.add('hidden');
+                resultContainer.classList.add('hidden');
+                completionContainer.classList.remove('hidden');
+            }
+        }
+
+        function showResult(userAnswer) {
+            const correctAnswer = questionsData[currentQuestionIndex].correctAnswer;
+            questionContainer.classList.add('hidden');
+            resultContainer.classList.remove('hidden');
+            resultText.textContent = userAnswer === correctAnswer
+                ? 'Correct! This is a misconception.'
+                : `Incorrect. You selected "${userAnswer}", but this is a misconception.`;
+            truthText.textContent = `Truth: ${questionsData[currentQuestionIndex].truth}`;
+        }
+
+        trueBtn.addEventListener('click', () => showResult('True'));
+        falseBtn.addEventListener('click', () => showResult('False'));
+
+        nextBtn.addEventListener('click', () => {
+            currentQuestionIndex++;
+            showQuestion();
+        });
+
+        restartBtn.addEventListener('click', () => {
+            currentQuestionIndex = 0;
+            questionsData = getRandomQuestions(parseCSV(csvData), maxQuestions);
+            completionContainer.classList.add('hidden');
+            showQuestion();
+        });
+
+        // Start the quiz
+        showQuestion();
+    </script>
+</body>
+</html>
