@@ -1,0 +1,272 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Game Development Misconceptions Quiz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl">
+        <h1 class="text-2xl font-bold mb-4 text-center">Video Game Development Misconceptions Quiz</h1>
+        <div id="quiz-container">
+            <div class="mb-4">
+                <div class="w-full bg-gray-200 rounded-full h-4">
+                    <div id="progress-bar" class="bg-blue-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <p class="text-sm text-gray-600 mt-1 text-center">Question <span id="current-question">1</span> of <span id="total-questions">20</span></p>
+            </div>
+            <div id="question-container" class="mb-4">
+                <p id="question-text" class="text-lg mb-4"></p>
+                <div class="flex justify-center space-x-4">
+                    <button id="true-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">True</button>
+                    <button id="false-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">False</button>
+                </div>
+            </div>
+            <div id="result-container" class="hidden mb-4">
+                <p id="result-text" class="text-lg mb-4"></p>
+                <p id="truth-text" class="text-gray-700 mb-4"></p>
+                <button id="next-btn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Next Question</button>
+            </div>
+        </div>
+        <div id="summary-container" class="hidden">
+            <h2 class="text-xl font-semibold mb-4 text-center">Your Quiz Summary</h2>
+            <div id="summary-content" class="text-gray-700 mb-4"></div>
+            <div class="flex justify-center space-x-4">
+                <button id="download-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Download Summary</button>
+                <button id="restart-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Restart Quiz</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const questions = [];
+        const csvData = `Misconception,Truth
+"Video game development is just playing games all day.","It involves coding, design, art, sound, testing, and project management."
+"Game developers only need to know how to code.","Developers need skills in art, design, storytelling, audio, and collaboration."
+"Video games are developed by one person.","Most games are created by teams with specialized roles."
+"Game development is a low-skill job anyone can do.","It requires technical expertise, creativity, and years of practice."
+"Game developers are mostly young men.","The industry includes diverse ages, genders, and backgrounds."
+"Women are not interested in game development.","Women are active in the field, though under-represented due to stereotypes."
+"Game developers are lazy and lack ambition.","They work long hours under tight deadlines, driven by passion."
+"All game developers are gamers.","While many enjoy games, some focus purely on technical or creative aspects."
+"Game development is a glamorous, high-paying job.","Salaries vary, and crunch time can make it stressful."
+"Indie games are always low quality.","Many indie games are critically acclaimed for innovation and polish."
+"AAA games are always better than indie games.","Quality varies; indie games often excel in creativity and niche appeal."
+"Game development is cheap and quick.","It can cost millions and take years, even for smaller titles."
+"Mobile games are inexpensive to produce.","High-quality mobile games require significant investment in design and tech."
+"Game development is a one-time cost.","Ongoing updates, patches, and server maintenance add to expenses."
+"Free-to-play games are truly free to develop.","They often rely on microtransactions and require costly backend systems."
+"Outsourcing game development always cuts costs.","It can lead to quality issues or higher costs if mismanaged."
+"Game budgets are mostly spent on marketing.","Development costs like art, coding, and testing often dominate budgets."
+"Game developers don’t need formal education.","Many have degrees in computer science, art, or design, though self-taught developers exist."
+"Game development is all about violence and action games.","Games span genres like puzzle, simulation, and narrative-driven experiences."
+"Gamers are mostly teenage boys.","The gaming audience includes all ages and genders, with adults making up a large portion."
+"Women don’t play video games.","Studies show women make up nearly half of gamers globally."
+"Game developers work in isolation.","Collaboration across disciplines is essential for success."
+"Game development doesn’t require creativity.","Creativity in storytelling, art, and mechanics is central to the process."
+"Game developers always work overtime.","While crunch exists, many studios now prioritize work-life balance."
+"Game development is just about making fun games.","It involves solving complex technical and design challenges."
+"All game developers use the same tools.","Tools vary by project, from Unity and Unreal to custom engines."
+"Game development is a stable career.","The industry can be volatile, with layoffs and project cancellations."
+"Game developers are all nerds with no social skills.","Developers are diverse, with many excelling in teamwork and communication."
+"Game development is only for big studios.","Indie developers and small teams create many successful games."
+"Video games are easy to monetize.","Monetization requires careful design to avoid alienating players."
+"Game testing is just playing games for fun.","Testers perform rigorous, repetitive tasks to find bugs."
+"Game developers don’t need to understand business.","Knowledge of market trends and monetization is crucial."
+"Video games are always addictive by design.","Ethical developers balance engagement with player well-being."
+"Game development doesn’t involve math.","Math is used in physics, graphics, and game mechanics."
+"Game developers don’t care about player feedback.","Feedback drives updates and improves player experience."
+"Game art is less important than code.","Art and visuals are critical for immersion and appeal."
+"Game development is a male-dominated field.","Diversity is growing, with more women and minorities entering."
+"Game developers are always young and tech-obsessed.","Professionals of all ages contribute, with varied interests."
+"Game music is an afterthought.","Sound design and music are vital for atmosphere and engagement."
+"Game development is always profitable.","Many projects fail financially due to high risks."
+"Multiplayer games are easy to maintain.","They require complex, costly server infrastructure."
+"Game developers don’t need documentation.","Documentation is essential for team coordination and maintenance."
+"Game development is all about graphics.","Gameplay and story often matter more to players."
+"Indie developers can’t compete with big studios.","Indie games often succeed through innovation and niche markets."
+"Game development is a solo hobby.","Professional development requires large, coordinated teams."
+"Games are only for entertainment.","They’re also used for education, training, and therapy."
+"Game developers don’t face crunch.","Crunch is common but varies by studio culture."
+"Video game budgets are always huge.","Smaller games can be made with modest budgets."
+"Game developers are all self-taught.","Many have formal training, though self-learning is also common."
+"Game development is just a job, not a passion.","Most developers are driven by a love for creating games."`;
+
+        // Parse CSV data
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n').slice(1); // Skip header
+            return lines.map(line => {
+                const [misconception, truth] = line.split('","').map(item => item.replace(/^"|"$/g, ''));
+                return { misconception, truth, correctAnswer: 'False' }; // All misconceptions are false
+            });
+        }
+
+        let currentQuestionIndex = 0;
+        let questionsData = parseCSV(csvData);
+        const maxQuestions = 20;
+        let userResponses = [];
+
+        // Select 20 random questions
+        function getRandomQuestions(array, count) {
+            const shuffled = [...array].sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, count);
+        }
+
+        // Initialize with 20 random questions
+        questionsData = getRandomQuestions(questionsData, maxQuestions);
+
+        const quizContainer = document.getElementById('quiz-container');
+        const questionContainer = document.getElementById('question-container');
+        const questionText = document.getElementById('question-text');
+        const trueBtn = document.getElementById('true-btn');
+        const falseBtn = document.getElementById('false-btn');
+        const resultContainer = document.getElementById('result-container');
+        const resultText = document.getElementById('result-text');
+        const truthText = document.getElementById('truth-text');
+        const nextBtn = document.getElementById('next-btn');
+        const summaryContainer = document.getElementById('summary-container');
+        const summaryContent = document.getElementById('summary-content');
+        const downloadBtn = document.getElementById('download-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const progressBar = document.getElementById('progress-bar');
+        const currentQuestionDisplay = document.getElementById('current-question');
+        const totalQuestionsDisplay = document.getElementById('total-questions');
+
+        function updateProgressBar() {
+            const progress = ((currentQuestionIndex + 1) / maxQuestions) * 100;
+            progressBar.style.width = `${progress}%`;
+            currentQuestionDisplay.textContent = currentQuestionIndex + 1;
+            totalQuestionsDisplay.textContent = maxQuestions;
+        }
+
+        function showQuestion() {
+            if (currentQuestionIndex < questionsData.length) {
+                questionText.textContent = questionsData[currentQuestionIndex].misconception;
+                quizContainer.classList.remove('hidden');
+                questionContainer.classList.remove('hidden');
+                resultContainer.classList.add('hidden');
+                summaryContainer.classList.add('hidden');
+                updateProgressBar();
+            } else {
+                showSummary();
+            }
+        }
+
+        function showResult(userAnswer) {
+            const correctAnswer = questionsData[currentQuestionIndex].correctAnswer;
+            const isCorrect = userAnswer === correctAnswer;
+            userResponses.push({
+                question: questionsData[currentQuestionIndex].misconception,
+                answer: userAnswer,
+                isCorrect: isCorrect,
+                truth: questionsData[currentQuestionIndex].truth
+            });
+            questionContainer.classList.add('hidden');
+            resultContainer.classList.remove('hidden');
+            quizContainer.classList.remove('hidden');
+            resultText.textContent = isCorrect
+                ? 'Correct! This is a misconception.'
+                : `Incorrect. You selected "${userAnswer}", but this is a misconception.`;
+            truthText.textContent = `Truth: ${questionsData[currentQuestionIndex].truth}`;
+        }
+
+        function showSummary() {
+            quizContainer.classList.add('hidden');
+            resultContainer.classList.add('hidden');
+            summaryContainer.classList.remove('hidden');
+            let correctCount = userResponses.filter(resp => resp.isCorrect).length;
+            let summaryHTML = `<p class="text-lg mb-4">You answered ${correctCount} out of ${maxQuestions} questions correctly.</p>`;
+            summaryHTML += '<ol class="list-decimal pl-6">';
+            userResponses.forEach((resp, index) => {
+                summaryHTML += `
+                    <li class="mb-4">
+                        <p><strong>Question ${index + 1}:</strong> ${resp.question}</p>
+                        <p><strong>Your Answer:</strong> ${resp.answer} (${resp.isCorrect ? 'Correct' : 'Incorrect'})</p>
+                        <p><strong>Truth:</strong> ${resp.truth}</p>
+                    </li>`;
+            });
+            summaryHTML += '</ol>';
+            summaryContent.innerHTML = summaryHTML;
+        }
+
+        function downloadSummary() {
+            let correctCount = userResponses.filter(resp => resp.isCorrect).length;
+            let textContent = `Video Game Development Misconceptions Quiz Summary\n\n`;
+            textContent += `You answered ${correctCount} out of ${maxQuestions} questions correctly.\n\n`;
+            userResponses.forEach((resp, index) => {
+                textContent += `Question ${index + 1}: ${resp.question}\n`;
+                textContent += `Your Answer: ${resp.answer} (${resp.isCorrect ? 'Correct' : 'Incorrect'})\n`;
+                textContent += `Truth: ${resp.truth}\n\n`;
+            });
+            const blob = new Blob([textContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'quiz_summary.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        trueBtn.addEventListener('click', () => showResult('True'));
+        falseBtn.addEventListener('click', () => showResult('False'));
+
+        nextBtn.addEventListener('click', () => {
+            currentQuestionIndex++;
+            showQuestion();
+        });
+
+        downloadBtn.addEventListener('click', downloadSummary);
+
+        restartBtn.addEventListener('click', () => {
+            currentQuestionIndex = 0;
+            userResponses = [];
+            questionsData = getRandomQuestions(parseCSV(csvData), maxQuestions);
+            summaryContainer.classList.add('hidden');
+            showQuestion();
+        });
+
+        // Start the quiz
+        showQuestion();
+    </script>
+</body>
+</html>
