@@ -1,43 +1,4 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -48,27 +9,33 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
     <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl">
         <h1 class="text-2xl font-bold mb-4 text-center">Software Development Misconceptions Quiz</h1>
-        <div class="mb-4">
-            <div class="w-full bg-gray-200 rounded-full h-4">
-                <div id="progress-bar" class="bg-blue-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+        <div id="quiz-container">
+            <div class="mb-4">
+                <div class="w-full bg-gray-200 rounded-full h-4">
+                    <div id="progress-bar" class="bg-blue-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <p class="text-sm text-gray-600 mt-1 text-center">Question <span id="current-question">1</span> of <span id="total-questions">20</span></p>
             </div>
-            <p class="text-sm text-gray-600 mt-1 text-center">Question <span id="current-question">1</span> of <span id="total-questions">20</span></p>
+            <div id="question-container" class="mb-4">
+                <p id="question-text" class="text-lg mb-4"></p>
+                <div class="flex justify-center space-x-4">
+                    <button id="true-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">True</button>
+                    <button id="false-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">False</button>
+                </div>
+            </div>
+            <div id="result-container" class="hidden">
+                <p id="result-text" class="text-lg mb-4"></p>
+                <p id="truth-text" class="text-gray-700 mb-4"></p>
+                <button id="next-btn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Next Question</button>
+            </div>
         </div>
-        <div id="question-container" class="mb-4">
-            <p id="question-text" class="text-lg mb-4"></p>
+        <div id="summary-container" class="hidden">
+            <h2 class="text-xl font-semibold mb-4 text-center">Your Quiz Summary</h2>
+            <div id="summary-content" class="text-gray-700 mb-4"></div>
             <div class="flex justify-center space-x-4">
-                <button id="true-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">True</button>
-                <button id="false-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">False</button>
+                <button id="download-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Download Summary</button>
+                <button id="restart-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Restart Quiz</button>
             </div>
-        </div>
-        <div id="result-container" class="hidden">
-            <p id="result-text" class="text-lg mb-4"></p>
-            <p id="truth-text" class="text-gray-700 mb-4"></p>
-            <button id="next-btn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Next Question</button>
-        </div>
-        <div id="completion-container" class="hidden">
-            <p class="text-lg font-semibold text-center">Quiz Completed! Thank you for participating.</p>
-            <button id="restart-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mt-4">Restart Quiz</button>
         </div>
     </div>
 
@@ -136,6 +103,7 @@
         let currentQuestionIndex = 0;
         let questionsData = parseCSV(csvData);
         const maxQuestions = 20;
+        let userResponses = [];
 
         // Select 20 random questions
         function getRandomQuestions(array, count) {
@@ -146,6 +114,7 @@
         // Initialize with 20 random questions
         questionsData = getRandomQuestions(questionsData, maxQuestions);
 
+        const quizContainer = document.getElementById('quiz-container');
         const questionText = document.getElementById('question-text');
         const trueBtn = document.getElementById('true-btn');
         const falseBtn = document.getElementById('false-btn');
@@ -153,8 +122,9 @@
         const resultText = document.getElementById('result-text');
         const truthText = document.getElementById('truth-text');
         const nextBtn = document.getElementById('next-btn');
-        const questionContainer = document.getElementById('question-container');
-        const completionContainer = document.getElementById('completion-container');
+        const summaryContainer = document.getElementById('summary-container');
+        const summaryContent = document.getElementById('summary-content');
+        const downloadBtn = document.getElementById('download-btn');
         const restartBtn = document.getElementById('restart-btn');
         const progressBar = document.getElementById('progress-bar');
         const currentQuestionDisplay = document.getElementById('current-question');
@@ -170,24 +140,67 @@
         function showQuestion() {
             if (currentQuestionIndex < questionsData.length) {
                 questionText.textContent = questionsData[currentQuestionIndex].misconception;
-                questionContainer.classList.remove('hidden');
+                quizContainer.classList.remove('hidden');
                 resultContainer.classList.add('hidden');
+                summaryContainer.classList.add('hidden');
                 updateProgressBar();
             } else {
-                questionContainer.classList.add('hidden');
-                resultContainer.classList.add('hidden');
-                completionContainer.classList.remove('hidden');
+                showSummary();
             }
         }
 
         function showResult(userAnswer) {
             const correctAnswer = questionsData[currentQuestionIndex].correctAnswer;
-            questionContainer.classList.add('hidden');
+            const isCorrect = userAnswer === correctAnswer;
+            userResponses.push({
+                question: questionsData[currentQuestionIndex].misconception,
+                answer: userAnswer,
+                isCorrect: isCorrect,
+                truth: questionsData[currentQuestionIndex].truth
+            });
+            quizContainer.classList.add('hidden');
             resultContainer.classList.remove('hidden');
-            resultText.textContent = userAnswer === correctAnswer
+            resultText.textContent = isCorrect
                 ? 'Correct! This is a misconception.'
                 : `Incorrect. You selected "${userAnswer}", but this is a misconception.`;
             truthText.textContent = `Truth: ${questionsData[currentQuestionIndex].truth}`;
+        }
+
+        function showSummary() {
+            quizContainer.classList.add('hidden');
+            resultContainer.classList.add('hidden');
+            summaryContainer.classList.remove('hidden');
+            let correctCount = userResponses.filter(resp => resp.isCorrect).length;
+            let summaryHTML = `<p class="text-lg mb-4">You answered ${correctCount} out of ${maxQuestions} questions correctly.</p>`;
+            summaryHTML += '<ol class="list-decimal pl-6">';
+            userResponses.forEach((resp, index) => {
+                summaryHTML += `
+                    <li class="mb-4">
+                        <p><strong>Question ${index + 1}:</strong> ${resp.question}</p>
+                        <p><strong>Your Answer:</strong> ${resp.answer} (${resp.isCorrect ? 'Correct' : 'Incorrect'})</p>
+                        <p><strong>Truth:</strong> ${resp.truth}</p>
+                    </li>`;
+            });
+            summaryHTML += '</ol>';
+            summaryContent.innerHTML = summaryHTML;
+        }
+
+        function downloadSummary() {
+            let correctCount = userResponses.filter(resp => resp.isCorrect).length;
+            let textContent = `Software Development Misconceptions Quiz Summary\n\n`;
+            textContent += `You answered ${correctCount} out of ${maxQuestions} questions correctly.\n\n`;
+            userResponses.forEach((resp, index) => {
+                textContent += `Question ${index + 1}: ${resp.question}\n`;
+                textContent += `Your Answer: ${resp.answer} (${resp.isCorrect ? 'Correct' : 'Incorrect'})\n`;
+                textContent += `Truth: ${resp.truth}\n\n`;
+            });
+            const blob = new Blob([textContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'quiz_summary.txt';
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         trueBtn.addEventListener('click', () => showResult('True'));
@@ -198,10 +211,13 @@
             showQuestion();
         });
 
+        downloadBtn.addEventListener('click', downloadSummary);
+
         restartBtn.addEventListener('click', () => {
             currentQuestionIndex = 0;
+            userResponses = [];
             questionsData = getRandomQuestions(parseCSV(csvData), maxQuestions);
-            completionContainer.classList.add('hidden');
+            summaryContainer.classList.add('hidden');
             showQuestion();
         });
 
